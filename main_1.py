@@ -280,10 +280,10 @@ def is_authorized_device(vendor_id_dec, product_id_dec, serial_number):
            (serial_number is not None)
 
 if __name__ == '__main__':
-    #app = QtWidgets.QApplication(sys.argv)
-    #window = FileDecryptor()
-    #window.show()
-    #sys.exit(app.exec())
+    app = QtWidgets.QApplication(sys.argv)
+    window = FileDecryptor()
+    window.show()
+    sys.exit(app.exec())
 
-    r = get_usb_serial_number_macos(4703, 0)
-    print(r)
+    #r = get_usb_serial_number_macos(4703, 0)
+    #print(r)

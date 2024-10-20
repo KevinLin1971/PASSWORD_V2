@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QInputDialog, QMenuBar, QMenu, QStatusBar, QPushButton, 
                                QDialog, QListWidgetItem)
 from PySide6.QtCore import Qt, QTimer
+import subprocess
 
 # 導入 USBSelector 類
 from setupUSB import USBSelector
@@ -200,9 +201,34 @@ class USBFileViewer(QMainWindow):
         QMessageBox.about(self, "關於", "USB 檔案檢視器\n版本 1.0\n作者：您的名字")
 
     def onUSBSelected(self, index):
-        # 當選擇 USB 裝置時觸發
-        # 這裡可以添加讀取選定 USB 裝置中檔案的邏輯
-        self.statusBar.showMessage(f"選擇了 USB 裝置: {self.usbSelector.currentText()}")
+        if index > 0:  # 確保不是 "選擇 USB 裝置" 選項
+            selected_device = self.registered_devices[index - 1]
+            self.statusBar.showMessage(f"選擇了 USB 裝置: {self.usbSelector.currentText()}")
+            self.load_usb_files(selected_device)
+        else:
+            self.fileList.clear()  # 清空文件列表
+            self.statusBar.showMessage("請選擇 USB 裝置")
+
+    def load_usb_files(self, device):
+        self.fileList.clear()  # 清空之前的文件列表
+        try:
+            # 使用新的函數獲取掛載點
+            mountpoint = self.get_mount_point()
+            if not mountpoint:
+                raise ValueError("無法獲取設備的掛載點")
+
+            for root, dirs, files in os.walk(mountpoint):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(file_path, mountpoint)
+                    item = QListWidgetItem(relative_path)
+                    item.setData(Qt.UserRole, file_path)  # 存儲完整文件路徑
+                    self.fileList.addItem(item)
+
+            self.statusBar.showMessage(f"已加載 {self.fileList.count()} 個文件")
+        except Exception as e:
+            self.statusBar.showMessage(f"讀取文件列表時出錯: {str(e)}")
+            QMessageBox.warning(self, "錯誤", f"無法讀取 USB 設備中的文件：{str(e)}")
 
     def onFileSelected(self, item):
         # 當選擇檔案時觸發
@@ -250,6 +276,57 @@ class USBFileViewer(QMainWindow):
                 # 如果無法獲取某些屬性，我們就跳過這個設備
                 pass
         return usb_devices
+
+    def get_mount_point(self):
+            """獲取 USB 裝置的掛載點"""
+            if sys.platform.startswith('darwin'):  # macOS
+                return self.get_mount_point_macos()
+            else:
+                raise NotImplementedError("目前只支援 macOS 平台")
+
+    def get_mount_point_macos(self):
+        try:
+            cmd = ['mount']
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            lines = output.splitlines()
+
+            for line in lines:
+                if 'Volumes' in line and 'PassWord' in line:
+                    parts = line.split(' on ')
+                    if len(parts) >= 2:
+                        mount_point = parts[1].split(' (')[0]
+                        # 檢查掛載點是否包含 .txt 文件
+                        if self.has_txt_files(mount_point):
+                            return mount_point
+            return None
+        except Exception as e:
+            print(f"獲取掛載點時發生錯誤：{e}")
+            return None
+            
+    def has_txt_files(self, directory):
+        try:
+            for root, dirs, files in os.walk(directory):
+                print(files)
+                if any(file.endswith('.txt') for file in files):
+                    return True
+            return False
+        except Exception as e:
+            print(f"檢查 .txt 文件時出錯：{e}")
+            return False
+    
+    def _get_mount_point_macos(self):
+        try:
+            # 使用新的函數獲取掛載點
+            cmd = ['mount']
+            # mountpoint = subprocess.check_output(['diskutil', 'info', '-plist', '/dev/disk1']).decode('utf-8')
+            mountpoint = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            print(mountpoint)
+            if not mountpoint:
+                raise ValueError("無法獲取設備的掛載點")
+            return mountpoint
+        except Exception as e:
+            print(f"處理設備時出錯: {e}")
+            print(f"設備數據: {device}")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
